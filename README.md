@@ -1,2 +1,2 @@
 # image-utils
-Various scripts to work with massive art image library.
+Various scripts to work with massive art image libraries.
