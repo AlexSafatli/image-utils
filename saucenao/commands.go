@@ -13,29 +13,15 @@ func scan(root string, sauce *gophersauce.Client) {
 	}
 
 	var matches map[string]paths.ImageFile
-
 	matches = make(map[string]paths.ImageFile)
+
+	doRateLimitedSaucenaoSearches(&images, sauce)
+
 	for _, img := range images {
-		hash, err := getSaucenaoMetadata(&img, sauce)
-		if err != nil {
-			fmt.Println(err)
-		}
-		match, ok := matches[hash]
+		match, ok := matches[img.Metadata.Header.IndexName]
 		if ok {
 			// Found duplicate.
-			//resolveDuplicate()
-			fmt.Printf("Found duplicates: %+v, %+v", img, match)
+			fmt.Printf("Duplicate found: %+v, %+v", match, img)
 		}
 	}
-}
-
-func getSaucenaoMetadata(img *paths.ImageFile, sauce *gophersauce.Client) (hash string, err error) {
-	r, err := sauce.FromFile(img.Path)
-	if err != nil {
-		return
-	}
-	match := r.First()
-	hash = match.Header.IndexName
-	img.Metadata = &match
-	return
 }
