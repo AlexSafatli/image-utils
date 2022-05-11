@@ -1,11 +1,15 @@
 from progress.bar import Bar
+from terminaltables import AsciiTable
 
-import skimage
+import image_file
+
 import numpy as np
-import cv2
-import os
 
+import os
 from sys import argv
+
+
+IMAGE_FILES = {}
 
 
 def check_dir(directory: str) -> str:
@@ -15,30 +19,22 @@ def check_dir(directory: str) -> str:
     return directory
 
 
-def matrices(directory: str, px_size=50):
+def matrices(directory: str):
     fnames = []
     m = []
     directory = check_dir(directory)
-    files = [fname for fname in os.listdir(directory)]
+    img_files = []
+    for root, dirs, files in os.walk(directory):
+        img_files.extend([os.path.join(root, f) for f in files])
     with Bar('Converting Images to Tensors in "' + directory + '"',
-             max=len(files)) as bar:
-        for fname in files:
-            f = os.path.join(directory, fname)
-            if not os.path.isdir(f):
-                try:
-                    img = cv2.imdecode(np.fromfile(f, dtype=np.uint8),
-                                       cv2.IMREAD_UNCHANGED)
-                    if type(img) == np.ndarray:
-                        img = img[..., 0:3]
-                        img = cv2.resize(img, dsize=(px_size, px_size),
-                                         interpolation=cv2.INTER_CUBIC)
-
-                        if len(img.shape) == 2:
-                            img = skimage.color.gray2rgb(img)
-                        m.append(img)
-                        fnames.append(fname)
-                except:
-                    pass
+             max=len(img_files)) as bar:
+        for f in img_files:
+            if not os.path.isdir(f) and f not in IMAGE_FILES:
+                img = image_file.ImageFile(f)
+                IMAGE_FILES[f] = img
+                if img.tensor is not None:
+                    m.append(img.tensor)
+                    fnames.append(os.path.basename(f))
             bar.next()
     return m, fnames
 
@@ -58,24 +54,40 @@ def similarity(sim: int) -> int:
     return ref
 
 
-def determine_image_quality(a_dir: str, b_dir: str, a, b):
-    a_dir = check_dir(a_dir)
-    b_dir = check_dir(b_dir)
-    a_size = os.stat(a_dir + a).st_size
-    b_size = os.stat(b_dir + b).st_size
+def determine_image_quality(a: str, b: str):
+    a_size = IMAGE_FILES[a].stat.st_size
+    b_size = IMAGE_FILES[b].stat.st_size
     if a_size > b_size:
-        return os.path.join(a_dir, a), os.path.join(b_dir, b)
-    return os.path.join(b_dir, b), os.path.join(a_dir, a)
+        return a, b
+    return b, a
 
 
-def print_images(a, b):
-    print("""Duplicate files:\n{} and \n{}
+def print_dupes(ans: dict):
+    for k in ans:
+        table_data = [
+            ['File Name', 'Path', 'Size'],
+            [ans[k]['fname'], ans[k]['loc'],
+             IMAGE_FILES[ans[k]['loc']].stat.st_size]
+        ]
+        for dupe in ans[k]['dupes']:
+            table_data.append([os.path.basename(dupe), dupe,
+                               IMAGE_FILES[dupe].stat.st_size])
+        print(AsciiTable(table_data).table, end='\n\n')
 
-    """.format(a, b))
+
+def print_lower_qualities(li: list):
+    table_data = [
+        ['File Name', 'Path', 'Size']
+    ]
+    for f in li:
+        img = IMAGE_FILES[f]
+        table_data.append([os.path.basename(img.path), img.path,
+                           img.stat.st_size])
+    print(AsciiTable(table_data).table)
 
 
-def search_directory(directory: str, px_size=50):
-    a_matrices, a_fnames = matrices(directory, px_size)
+def search_directory(directory: str):
+    a_matrices, a_fnames = matrices(directory)
     ans = {}
     lower_qualities = []
     sim = similarity(1)  # allow customizable similarity later
@@ -88,16 +100,13 @@ def search_directory(directory: str, px_size=50):
                 if err < sim:
                     a = a_fnames[a_cnt]
                     b = a_fnames[b_cnt]
-                    print_images(str("..." + directory[-35:]) +
-                                 "/" + a, str("..." + directory[-35:]) +
-                                 "/" + b)
+                    a_path = os.path.join(directory, a)
+                    b_path = os.path.join(directory, b)
                     if a in ans.keys():
-                        ans[a]['dupes'] += [os.path.join(directory, b)]
+                        ans[a]['dupes'] += [b_path]
                     else:
-                        ans[a] = {'loc': os.path.join(directory, a),
-                                  'dupes': [os.path.join(directory, b)]}
-                    high, low = determine_image_quality(directory, directory,
-                                                        a, b)
+                        ans[a] = {'fname': a, 'loc': a_path, 'dupes': [b_path]}
+                    high, low = determine_image_quality(a_path, b_path)
                     lower_qualities.append(low)
     return ans, lower_qualities
 
@@ -107,7 +116,7 @@ def delete_images(image_set: set):
     for f in image_set:
         try:
             os.remove(f)
-            print('Deleted:', f, end='\r')
+            print('Deleted:', f)
             i += 1
         except:
             pass
@@ -121,9 +130,11 @@ def main():
 
     image_folder = argv[1]
     ans, lowers = search_directory(image_folder)
+    print_dupes(ans)
     print('Found', len(ans), 'image(s) with one or more duplicates.')
 
     if len(lowers) > 0:
+        print_lower_qualities(lowers)
         ask = input('Delete lower quality images? (y/N)')
         if ask.lower() == 'y' or ask.lower() == 'yes':
             delete_images(set(lowers))
