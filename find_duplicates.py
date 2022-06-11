@@ -16,7 +16,7 @@ def matrices(directory: str, recursive: bool):
     paths = []
     m = []
     files = base.get_all_file_paths(directory, recursive=recursive)
-    with Bar('Converting Images to Tensors in "' + directory + '"',
+    with Bar('Converting images to tensors in "' + directory + '"',
              max=len(files)) as bar:
         for f in files:
             if not os.path.isdir(f) and f not in IMAGE_FILES:
@@ -40,7 +40,7 @@ def similarity(sim: int) -> int:
     if sim == -1:
         ref = 1000  # very low sens
     elif sim == 1:
-        ref = 0.025  # extremely sens
+        ref = 0.02  # extremely sens
     return ref
 
 
@@ -60,6 +60,7 @@ def search_directory(directory: str, recursive=True):
     sim = similarity(1)  # allow customizable similarity later
 
     # Find duplicates in this folder.
+    print('Searching for duplicates among tensors')
     for a_cnt, a_matrix in enumerate(a_matrices):
         for b_cnt, b_matrix in enumerate(a_matrices):
             if b_cnt != 0 and b_cnt > a_cnt != len(a_matrices):
