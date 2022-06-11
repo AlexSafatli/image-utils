@@ -16,10 +16,12 @@ def _check_valid_dir(directory: str):
         raise FileNotFoundError(f"Directory: " + directory + " does not exist")
 
 
-def get_all_file_paths(directory: str) -> list:
+def get_all_file_paths(directory: str, recursive=True) -> list:
     li = []
     for root, dirs, files in os.walk(directory):
         li.extend([os.path.join(root, f) for f in files])
+        if not recursive:
+            break
     return li
 
 

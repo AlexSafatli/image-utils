@@ -12,10 +12,10 @@ from sys import argv
 IMAGE_FILES = {}
 
 
-def matrices(directory: str):
+def matrices(directory: str, recursive: bool):
     paths = []
     m = []
-    files = base.get_all_file_paths(directory)
+    files = base.get_all_file_paths(directory, recursive=recursive)
     with Bar('Converting Images to Tensors in "' + directory + '"',
              max=len(files)) as bar:
         for f in files:
@@ -52,8 +52,8 @@ def determine_image_quality(a: str, b: str):
     return b, a
 
 
-def search_directory(directory: str):
-    a_matrices, a_paths = matrices(directory)
+def search_directory(directory: str, recursive=True):
+    a_matrices, a_paths = matrices(directory, recursive)
     ans = {}
     found_dupes = []
     lower_qualities = []
@@ -95,7 +95,11 @@ def main():
         exit(1)
 
     image_folder = argv[1]
-    ans, lowers = search_directory(image_folder)
+    recurse = True
+    if len(argv) >= 3:
+        recurse = argv[2] == 'True' or argv[2] == 'true'
+        print('Recursive:', recurse)
+    ans, lowers = search_directory(image_folder, recursive=recurse)
     print('Found', len(ans), 'image(s) with one or more duplicates.')
 
     if len(lowers) > 0 and base.show_duplicate_image_results_in_window(ans):
